@@ -1,0 +1,207 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --green: #10b981;
+  --orange: #f59e0b;
+  --red: #ef4444;
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --hero: linear-gradient(135deg, #0f2a54 0%, #1e40af 60%, #2563eb 100%);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── Layout ─────────────────────────────── */
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* ── Hero ────────────────────────────────── */
+.hero {
+  background: var(--hero);
+  color: #fff;
+  padding: 3rem 0 3.5rem;
+}
+
+.hero-title {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.2rem;
+}
+
+.hero-sub {
+  color: rgba(255 255 255 / 0.65);
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+}
+
+/* ── Stats cards ─────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  background: rgba(255 255 255 / 0.12);
+  border: 1px solid rgba(255 255 255 / 0.18);
+  border-radius: 14px;
+  padding: 1.1rem 1.4rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  transition: background 0.2s;
+}
+
+.stat-card:hover {
+  background: rgba(255 255 255 / 0.18);
+}
+
+.stat-icon { font-size: 1.4rem; line-height: 1; margin-bottom: 0.3rem; }
+.stat-value { font-size: 1.65rem; font-weight: 700; line-height: 1; }
+.stat-label { font-size: 0.75rem; color: rgba(255 255 255 / 0.65); text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* ── Main ────────────────────────────────── */
+main {
+  padding: 2rem 0 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* ── Sections ────────────────────────────── */
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.section-title::before {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 1.1em;
+  background: var(--primary);
+  border-radius: 2px;
+}
+
+/* ── Charts ──────────────────────────────── */
+.chart-card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  box-shadow: 0 1px 4px rgba(0 0 0 / 0.07);
+  height: 280px;
+  position: relative;
+}
+
+.chart-card canvas {
+  position: absolute;
+  inset: 1.4rem 1.5rem;
+}
+
+/* ── Activities table ────────────────────── */
+.table-wrap {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(0 0 0 / 0.07);
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+thead th {
+  padding: 0.7rem 1rem;
+  background: #f8fafc;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+tbody td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: #f8fafc; }
+
+.td-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.td-muted { color: var(--muted); }
+
+/* ── Type badges ─────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: var(--primary);
+}
+
+/* ── Footer ──────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 1.2rem 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* ── Empty state ─────────────────────────── */
+.empty {
+  padding: 3rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ── Responsive ──────────────────────────── */
+@media (max-width: 640px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .chart-card { height: 220px; }
+  table { font-size: 0.8rem; }
+  thead th, tbody td { padding: 0.55rem 0.7rem; }
+  .td-name { max-width: 120px; }
+}
