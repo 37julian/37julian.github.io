@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Aktivitäten — Garmin Coach{% endblock %}
+{% block content %}
+<div class="p-6 max-w-6xl mx-auto space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-bold text-white">Aktivitäten <span class="text-gray-500 text-sm font-normal">({{ total }})</span></h1>
+  </div>
+
+  <!-- Filter -->
+  <form method="GET" class="flex flex-wrap gap-2 items-end">
+    <select name="type" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 focus:ring-garmin focus:border-garmin">
+      <option value="">Alle Typen</option>
+      {% for t in types %}
+      <option value="{{ t }}" {% if t == filter_type %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <input type="date" name="start" value="{{ filter_start }}" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200">
+    <input type="date" name="end" value="{{ filter_end }}" class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200">
+    <button type="submit" class="px-3 py-1.5 bg-garmin hover:bg-garmin-dark rounded-lg text-white text-sm font-medium">Filtern</button>
+    {% if filter_type or filter_start or filter_end %}
+    <a href="/activities" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-sm">Zurücksetzen</a>
+    {% endif %}
+  </form>
+
+  <!-- Table -->
+  <div class="card p-0 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-800 text-xs text-gray-500 uppercase tracking-wide">
+          <th class="text-left px-4 py-3">Aktivität</th>
+          <th class="text-right px-4 py-3">Distanz</th>
+          <th class="text-right px-4 py-3">Dauer</th>
+          <th class="text-right px-4 py-3">Pace</th>
+          <th class="text-right px-4 py-3">Ø HF</th>
+          <th class="text-right px-4 py-3">Höhm</th>
+          <th class="text-right px-4 py-3">kcal</th>
+          <th class="text-right px-4 py-3">Load</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-800">
+        {% for a in activities %}
+        <tr class="hover:bg-gray-800/50 transition-colors group">
+          <td class="px-4 py-3">
+            <a href="/activities/{{ a.garmin_id }}" class="group-hover:text-garmin">
+              <div class="font-medium text-white">{{ a.name or a.type }}</div>
+              <div class="text-xs text-gray-500">{{ (a.start_time_local or '')[:16] }} · <span class="text-gray-400">{{ a.type }}</span></div>
+            </a>
+          </td>
+          <td class="px-4 py-3 text-right text-white font-medium">{{ fmt_dist(a.distance_m) }}</td>
+          <td class="px-4 py-3 text-right text-gray-300">{{ fmt_duration(a.duration_seconds) }}</td>
+          <td class="px-4 py-3 text-right text-gray-300">{{ fmt_pace(a.avg_pace_min_per_km) }}</td>
+          <td class="px-4 py-3 text-right">
+            {% if a.avg_hr %}
+            <span class="text-red-400">{{ a.avg_hr }}</span>
+            {% if a.max_hr %}<span class="text-gray-600">/{{ a.max_hr }}</span>{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-300">{% if a.elevation_gain_m %}{{ a.elevation_gain_m|int }}m{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right text-gray-300">{% if a.calories %}{{ a.calories|int }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right">
+            {% if a.training_load %}
+            <span class="badge bg-blue-500/10 text-blue-400">{{ a.training_load|int }}</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Keine Aktivitäten gefunden.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% set total_pages = ((total - 1) // per_page + 1) if total else 1 %}
+  {% if total_pages > 1 %}
+  <div class="flex items-center justify-center gap-2">
+    {% if page > 1 %}
+    <a href="?page={{ page - 1 }}&type={{ filter_type }}&start={{ filter_start }}&end={{ filter_end }}" class="px-3 py-1.5 bg-gray-800 rounded-lg text-sm hover:bg-gray-700">← Zurück</a>
+    {% endif %}
+    <span class="text-sm text-gray-400">Seite {{ page }} von {{ total_pages }}</span>
+    {% if page < total_pages %}
+    <a href="?page={{ page + 1 }}&type={{ filter_type }}&start={{ filter_start }}&end={{ filter_end }}" class="px-3 py-1.5 bg-gray-800 rounded-lg text-sm hover:bg-gray-700">Weiter →</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

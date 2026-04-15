@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Garmin Coach{% endblock %}
+{% block content %}
+<div class="p-6 max-w-6xl mx-auto space-y-6">
+  <h1 class="text-xl font-bold text-white">Dashboard</h1>
+
+  <!-- Stats Row -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="stat-card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Aktivitäten gesamt</p>
+      <p class="text-2xl font-bold text-white mt-1">{{ stats.total_activities or 0 }}</p>
+    </div>
+    <div class="stat-card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Gesamt km</p>
+      <p class="text-2xl font-bold text-garmin mt-1">{{ stats.total_km or 0 }}</p>
+    </div>
+    <div class="stat-card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Gesamt Stunden</p>
+      <p class="text-2xl font-bold text-white mt-1">{{ stats.total_hours or 0 }}</p>
+    </div>
+    <div class="stat-card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide">Ø Herzfrequenz</p>
+      <p class="text-2xl font-bold text-red-400 mt-1">{{ stats.avg_hr or '—' }} <span class="text-sm font-normal text-gray-500">bpm</span></p>
+    </div>
+  </div>
+
+  <!-- Training Status + Sleep -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {% if training_status %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">Training Status</p>
+      {% if training_status.vo2max_running %}
+      <p class="text-2xl font-bold text-green-400">{{ training_status.vo2max_running }} <span class="text-sm font-normal text-gray-500">VO₂max</span></p>
+      {% endif %}
+      {% if training_status.training_status %}
+      <p class="text-sm text-gray-300 mt-1">{{ training_status.training_status }}</p>
+      {% endif %}
+      {% if training_status.acute_load and training_status.chronic_load %}
+      <div class="mt-2 flex gap-3 text-xs text-gray-400">
+        <span>Akut: <b class="text-white">{{ training_status.acute_load|int }}</b></span>
+        <span>Chronisch: <b class="text-white">{{ training_status.chronic_load|int }}</b></span>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if sleep_avg %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">Schlaf (30 Tage Ø)</p>
+      <p class="text-2xl font-bold text-purple-400">{{ sleep_avg.avg_h or '—' }} <span class="text-sm font-normal text-gray-500">h</span></p>
+      <div class="mt-2 flex gap-3 text-xs text-gray-400">
+        {% if sleep_avg.avg_score %}<span>Score: <b class="text-white">{{ sleep_avg.avg_score }}</b></span>{% endif %}
+        {% if sleep_avg.avg_hrv %}<span>HRV: <b class="text-white">{{ sleep_avg.avg_hrv }}</b></span>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Weekly chart -->
+    <div class="stat-card col-span-1 md:col-span-{% if training_status and sleep_avg %}1{% else %}2{% endif %}">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-2">Letzte 30 Tage (pro Woche)</p>
+      <canvas id="weeklyChart" height="80"></canvas>
+    </div>
+  </div>
+
+  <!-- Recent Activities -->
+  <div class="card">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-white uppercase tracking-wide">Letzte Aktivitäten</h2>
+      <a href="/activities" class="text-xs text-garmin hover:underline">Alle anzeigen →</a>
+    </div>
+    <div class="space-y-2">
+      {% for a in recent %}
+      <a href="/activities/{{ a.garmin_id }}" class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors group">
+        <div class="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center
+          {% if 'running' in (a.type or '') %}bg-orange-500/20 text-orange-400
+          {% elif 'cycling' in (a.type or '') %}bg-blue-500/20 text-blue-400
+          {% elif 'swimming' in (a.type or '') %}bg-cyan-500/20 text-cyan-400
+          {% else %}bg-gray-700 text-gray-400{% endif %}">
+          {% if 'running' in (a.type or '') %}
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg>
+          {% elif 'cycling' in (a.type or '') %}
+          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm5.8-10l2.4-2.4.8.8c1.3 1.3 3 2.1 5.1 2.1V9c-1.5 0-2.7-.6-3.6-1.5l-1.9-1.9c-.5-.4-1-.6-1.6-.6s-1.1.2-1.4.6L7.8 8.4c-.4.4-.6.9-.6 1.4 0 .6.2 1.1.6 1.4L11 14v5h2v-6l-2.2-2.5zM19 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5z"/></svg>
+          {% else %}
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          {% endif %}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-white truncate group-hover:text-garmin">{{ a.name or a.type }}</p>
+          <p class="text-xs text-gray-500">{{ (a.start_time_local or '')[:10] }}</p>
+        </div>
+        <div class="flex gap-4 text-xs text-gray-400 flex-shrink-0">
+          {% if a.distance_m %}<span class="text-white font-medium">{{ fmt_dist(a.distance_m) }}</span>{% endif %}
+          {% if a.avg_pace_min_per_km %}<span>{{ fmt_pace(a.avg_pace_min_per_km) }}</span>{% endif %}
+          {% if a.avg_hr %}<span>{{ a.avg_hr }} bpm</span>{% endif %}
+        </div>
+      </a>
+      {% else %}
+      <p class="text-gray-500 text-sm text-center py-4">Noch keine Aktivitäten — klick auf Sync!</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+const weekly = {{ weekly | tojson }};
+if (weekly.length) {
+  new Chart(document.getElementById('weeklyChart'), {
+    type: 'bar',
+    data: {
+      labels: weekly.map(w => 'KW' + w.week.split('-')[1]),
+      datasets: [{
+        label: 'km',
+        data: weekly.map(w => w.km),
+        backgroundColor: '#00B0F020',
+        borderColor: '#00B0F0',
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: '#1F2937' } } }
+    }
+  });
+}
+</script>
+{% endblock %}
+{% endblock %}

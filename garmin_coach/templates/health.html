@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Gesundheit — Garmin Coach{% endblock %}
+{% block content %}
+<div class="p-6 max-w-5xl mx-auto space-y-5">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-bold text-white">Gesundheit</h1>
+    <div class="flex gap-2">
+      {% for d in [7, 30, 90] %}
+      <a href="/health?days={{ d }}" class="px-3 py-1 rounded-lg text-xs font-medium {% if days == d %}bg-garmin text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700{% endif %}">{{ d }}T</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Resting HF & HRV</p>
+      <canvas id="hrChart" height="130"></canvas>
+    </div>
+    <div class="card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Body Battery & Stress</p>
+      <canvas id="bbChart" height="130"></canvas>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card p-0 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-xs text-gray-500 uppercase border-b border-gray-800">
+          <th class="text-left px-4 py-3">Datum</th>
+          <th class="text-right px-4 py-3">Resting HF</th>
+          <th class="text-right px-4 py-3">HRV</th>
+          <th class="text-right px-4 py-3">HRV-Status</th>
+          <th class="text-right px-4 py-3">Ø Stress</th>
+          <th class="text-right px-4 py-3">BB High</th>
+          <th class="text-right px-4 py-3">BB Low</th>
+          <th class="text-right px-4 py-3">SpO₂</th>
+          <th class="text-right px-4 py-3">Schritte</th>
+        </tr></thead>
+        <tbody class="divide-y divide-gray-800">
+          {% for h in health_days %}
+          <tr class="hover:bg-gray-800/50">
+            <td class="px-4 py-2 text-gray-300">{{ h.date }}</td>
+            <td class="px-4 py-2 text-right text-red-400">{{ h.resting_hr or '—' }}</td>
+            <td class="px-4 py-2 text-right text-teal-400">{{ h.hrv_last_night or '—' }}</td>
+            <td class="px-4 py-2 text-right">
+              {% if h.hrv_status %}
+              <span class="badge {% if h.hrv_status in ['BALANCED', 'OPTIMAL'] %}bg-green-500/10 text-green-400{% elif h.hrv_status == 'LOW' %}bg-red-500/10 text-red-400{% else %}bg-yellow-500/10 text-yellow-400{% endif %}">
+                {{ h.hrv_status }}
+              </span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-2 text-right text-orange-400">{{ h.avg_stress or '—' }}</td>
+            <td class="px-4 py-2 text-right text-green-400">{{ h.body_battery_high or '—' }}</td>
+            <td class="px-4 py-2 text-right text-gray-400">{{ h.body_battery_low or '—' }}</td>
+            <td class="px-4 py-2 text-right text-gray-300">{% if h.avg_spo2 %}{{ h.avg_spo2 }}%{% else %}—{% endif %}</td>
+            <td class="px-4 py-2 text-right text-gray-300">{% if h.steps %}{{ '{:,}'.format(h.steps) }}{% else %}—{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="px-4 py-8 text-center text-gray-500">Keine Gesundheitsdaten — Sync ausführen.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+const cd = {{ chart_data | safe }};
+const baseOpts = {
+  elements: { point: { radius: 2 } },
+  scales: {
+    x: { ticks: { maxTicksLimit: 10, maxRotation: 0 }, grid: { display: false } }
+  }
+};
+
+new Chart(document.getElementById('hrChart'), {
+  type: 'line',
+  data: { labels: cd.dates, datasets: [
+    { label: 'Resting HF', data: cd.resting_hr, borderColor: '#F87171', yAxisID: 'y', fill: false, tension: 0.4, pointRadius: 2 },
+    { label: 'HRV', data: cd.hrv, borderColor: '#2DD4BF', yAxisID: 'y2', fill: false, tension: 0.4, pointRadius: 2 }
+  ]},
+  options: {
+    ...baseOpts,
+    plugins: { legend: { display: true, labels: { usePointStyle: true, boxWidth: 6 } } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 10, maxRotation: 0 }, grid: { display: false } },
+      y: { grid: { color: '#1F2937' }, position: 'left' },
+      y2: { grid: { display: false }, position: 'right' }
+    }
+  }
+});
+
+new Chart(document.getElementById('bbChart'), {
+  type: 'line',
+  data: { labels: cd.dates, datasets: [
+    { label: 'BB High', data: cd.bb_high, borderColor: '#4ADE80', backgroundColor: '#4ADE8010', fill: true, tension: 0.4, pointRadius: 2, yAxisID: 'y' },
+    { label: 'BB Low', data: cd.bb_low, borderColor: '#F87171', backgroundColor: '#F8717110', fill: true, tension: 0.4, pointRadius: 2, yAxisID: 'y' },
+    { label: 'Stress', data: cd.stress, borderColor: '#FB923C', fill: false, tension: 0.4, pointRadius: 2, yAxisID: 'y2' }
+  ]},
+  options: {
+    ...baseOpts,
+    plugins: { legend: { display: true, labels: { usePointStyle: true, boxWidth: 6 } } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 10, maxRotation: 0 }, grid: { display: false } },
+      y: { grid: { color: '#1F2937' }, position: 'left', min: 0, max: 100 },
+      y2: { grid: { display: false }, position: 'right', min: 0, max: 100 }
+    }
+  }
+});
+</script>
+{% endblock %}
+{% endblock %}
