@@ -74,10 +74,26 @@ def login(interactive: bool = False) -> Garmin:
         else:
             raise
 
-    # Token speichern
+    # Token speichern — API unterschiedlich je nach garminconnect-Version
     config.GARTH_DIR.mkdir(parents=True, exist_ok=True)
-    api.garth.dump(str(config.GARTH_DIR))
-    log.info("Token gespeichert nach %s", config.GARTH_DIR)
+    saved = False
+    for attr in ("garth", "_garth", "client"):
+        obj = getattr(api, attr, None)
+        if obj and hasattr(obj, "dump"):
+            obj.dump(str(config.GARTH_DIR))
+            saved = True
+            break
+    if not saved:
+        # Fallback: garth-Modul direkt
+        try:
+            garth.client.dump(str(config.GARTH_DIR))
+            saved = True
+        except Exception:
+            pass
+    if not saved:
+        log.warning("Token konnte nicht gespeichert werden — nächster Start braucht Login.")
+    else:
+        log.info("Token gespeichert nach %s", config.GARTH_DIR)
     return api
 
 
