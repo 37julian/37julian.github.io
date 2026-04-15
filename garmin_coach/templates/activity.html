@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block title %}{{ activity.name or 'Aktivität' }} — Garmin Coach{% endblock %}
+{% block content %}
+<div class="p-6 max-w-6xl mx-auto space-y-5">
+  <!-- Header -->
+  <div class="flex items-start justify-between">
+    <div>
+      <a href="/activities" class="text-xs text-gray-500 hover:text-garmin">← Alle Aktivitäten</a>
+      <h1 class="text-xl font-bold text-white mt-1">{{ activity.name or activity.type }}</h1>
+      <p class="text-sm text-gray-400">{{ (activity.start_time_local or '')[:16] }} · {{ activity.type }}</p>
+    </div>
+    <a href="/chat?activity={{ activity.garmin_id }}" class="px-3 py-1.5 bg-garmin/20 hover:bg-garmin/30 text-garmin rounded-lg text-sm font-medium">
+      Mit AI analysieren →
+    </a>
+  </div>
+
+  <!-- Key Metrics -->
+  <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+    {% if activity.distance_m %}
+    <div class="stat-card col-span-1">
+      <p class="text-xs text-gray-500">Distanz</p>
+      <p class="text-lg font-bold text-white">{{ fmt_dist(activity.distance_m) }}</p>
+    </div>
+    {% endif %}
+    {% if activity.duration_seconds %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Dauer</p>
+      <p class="text-lg font-bold text-white">{{ fmt_duration(activity.duration_seconds) }}</p>
+    </div>
+    {% endif %}
+    {% if activity.avg_pace_min_per_km %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Ø Pace</p>
+      <p class="text-lg font-bold text-garmin">{{ fmt_pace(activity.avg_pace_min_per_km) }}</p>
+    </div>
+    {% endif %}
+    {% if activity.avg_hr %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Ø / Max HF</p>
+      <p class="text-lg font-bold text-red-400">{{ activity.avg_hr }} / {{ activity.max_hr or '—' }}</p>
+    </div>
+    {% endif %}
+    {% if activity.elevation_gain_m %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Höhenmeter ↑</p>
+      <p class="text-lg font-bold text-white">{{ activity.elevation_gain_m|int }}m</p>
+    </div>
+    {% endif %}
+    {% if activity.calories %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Kalorien</p>
+      <p class="text-lg font-bold text-yellow-400">{{ activity.calories|int }} kcal</p>
+    </div>
+    {% endif %}
+    {% if activity.training_load %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Training Load</p>
+      <p class="text-lg font-bold text-blue-400">{{ activity.training_load|int }}</p>
+    </div>
+    {% endif %}
+    {% if activity.vo2max %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">VO₂max</p>
+      <p class="text-lg font-bold text-green-400">{{ activity.vo2max }}</p>
+    </div>
+    {% endif %}
+    {% if activity.training_effect_aerobic %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Aerober Effekt</p>
+      <p class="text-lg font-bold text-teal-400">{{ activity.training_effect_aerobic }}</p>
+    </div>
+    {% endif %}
+    {% if activity.avg_power %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Ø Power</p>
+      <p class="text-lg font-bold text-purple-400">{{ activity.avg_power|int }} W</p>
+    </div>
+    {% endif %}
+    {% if activity.avg_cadence %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Ø Kadenz</p>
+      <p class="text-lg font-bold text-white">{{ activity.avg_cadence|int }}</p>
+    </div>
+    {% endif %}
+    {% if activity.avg_running_cadence %}
+    <div class="stat-card">
+      <p class="text-xs text-gray-500">Laufkadenz</p>
+      <p class="text-lg font-bold text-white">{{ activity.avg_running_cadence|int }} spm</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Herzfrequenz</p>
+      <canvas id="hrChart" height="120"></canvas>
+    </div>
+    <div class="card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Geschwindigkeit & Höhe</p>
+      <canvas id="speedChart" height="120"></canvas>
+    </div>
+    {% if has_power %}
+    <div class="card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Power & Kadenz</p>
+      <canvas id="powerChart" height="120"></canvas>
+    </div>
+    {% endif %}
+    {% if has_gps %}
+    <div class="card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Route</p>
+      <div id="map" class="w-full rounded-lg bg-gray-800" style="height:250px"></div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Laps -->
+  {% if laps %}
+  <div class="card p-0 overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-800">
+      <h2 class="text-sm font-semibold text-white uppercase tracking-wide">Laps ({{ laps|length }})</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead><tr class="text-xs text-gray-500 uppercase">
+          <th class="text-left px-4 py-2">#</th>
+          <th class="text-right px-4 py-2">Distanz</th>
+          <th class="text-right px-4 py-2">Dauer</th>
+          <th class="text-right px-4 py-2">Pace</th>
+          <th class="text-right px-4 py-2">Ø HF</th>
+          <th class="text-right px-4 py-2">Max HF</th>
+          <th class="text-right px-4 py-2">Ø Power</th>
+          <th class="text-right px-4 py-2">Höhm ↑</th>
+          <th class="text-right px-4 py-2">Kadenz</th>
+        </tr></thead>
+        <tbody class="divide-y divide-gray-800">
+          {% for lap in laps %}
+          <tr class="hover:bg-gray-800/50">
+            <td class="px-4 py-2 text-gray-500">{{ lap.lap_index + 1 }}</td>
+            <td class="px-4 py-2 text-right text-white font-medium">{{ fmt_dist(lap.distance_m) }}</td>
+            <td class="px-4 py-2 text-right text-gray-300">{{ fmt_duration(lap.duration_seconds) }}</td>
+            <td class="px-4 py-2 text-right text-garmin">
+              {% if lap.avg_speed_ms and lap.avg_speed_ms > 0 %}
+              {{ fmt_pace(1000.0 / (lap.avg_speed_ms * 60)) }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-2 text-right text-red-400">{{ lap.avg_hr or '—' }}</td>
+            <td class="px-4 py-2 text-right text-gray-400">{{ lap.max_hr or '—' }}</td>
+            <td class="px-4 py-2 text-right text-purple-400">{% if lap.avg_power %}{{ lap.avg_power|int }}W{% else %}—{% endif %}</td>
+            <td class="px-4 py-2 text-right text-gray-300">{% if lap.elevation_gain_m %}{{ lap.elevation_gain_m|int }}m{% else %}—{% endif %}</td>
+            <td class="px-4 py-2 text-right text-gray-300">{{ lap.avg_cadence|int if lap.avg_cadence else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% block scripts %}
+<script>
+const cd = {{ chart_data | safe }};
+const elapsed = (cd.elapsed || []).map(s => {
+  if (!s) return '';
+  const m = Math.floor(s/60), sec = Math.floor(s%60);
+  return m + ':' + String(sec).padStart(2,'0');
+});
+
+const chartOpts = (yLabel) => ({
+  plugins: { legend: { display: false } },
+  elements: { point: { radius: 0 } },
+  scales: {
+    x: { ticks: { maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false } },
+    y: { grid: { color: '#1F2937' }, title: { display: !!yLabel, text: yLabel } }
+  }
+});
+
+// HR Chart
+if (cd.hr && cd.hr.some(v => v)) {
+  new Chart(document.getElementById('hrChart'), {
+    type: 'line',
+    data: { labels: elapsed, datasets: [{
+      data: cd.hr, borderColor: '#F87171', backgroundColor: '#F8717110',
+      fill: true, tension: 0.3
+    }]},
+    options: chartOpts('bpm')
+  });
+}
+
+// Speed + Altitude
+const speedData = {
+  labels: elapsed,
+  datasets: [
+    { label: 'km/h', data: cd.speed, borderColor: '#00B0F0', yAxisID: 'y', tension: 0.3, borderWidth: 2, pointRadius: 0 },
+    { label: 'Höhe m', data: cd.altitude, borderColor: '#6B7280', backgroundColor: '#6B728020', yAxisID: 'y2', fill: true, tension: 0.4, pointRadius: 0 }
+  ]
+};
+new Chart(document.getElementById('speedChart'), {
+  type: 'line',
+  data: speedData,
+  options: {
+    plugins: { legend: { display: true, labels: { usePointStyle: true, boxWidth: 6 } } },
+    elements: { point: { radius: 0 } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 8, maxRotation: 0 }, grid: { display: false } },
+      y: { grid: { color: '#1F2937' }, position: 'left' },
+      y2: { grid: { display: false }, position: 'right' }
+    }
+  }
+});
+
+// Power chart
+{% if has_power %}
+if (cd.power && cd.power.some(v => v)) {
+  new Chart(document.getElementById('powerChart'), {
+    type: 'line',
+    data: { labels: elapsed, datasets: [
+      { label: 'Power W', data: cd.power, borderColor: '#C084FC', yAxisID: 'y', tension: 0.3, pointRadius: 0 },
+      { label: 'Kadenz', data: cd.cadence, borderColor: '#34D399', yAxisID: 'y2', tension: 0.3, pointRadius: 0 }
+    ]},
+    options: {
+      plugins: { legend: { display: true, labels: { usePointStyle: true, boxWidth: 6 } } },
+      elements: { point: { radius: 0 } },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8 }, grid: { display: false } },
+        y: { grid: { color: '#1F2937' }, position: 'left' },
+        y2: { grid: { display: false }, position: 'right' }
+      }
+    }
+  });
+}
+{% endif %}
+
+// Map (Leaflet via CDN, loaded lazily)
+{% if has_gps %}
+const gpsTrack = {{ gps_track | safe }};
+if (gpsTrack.length > 0) {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+  document.head.appendChild(link);
+
+  const script = document.createElement('script');
+  script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  script.onload = () => {
+    const map = L.map('map');
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap contributors © CARTO'
+    }).addTo(map);
+    const latlngs = gpsTrack.map(p => [p.lat, p.lon]);
+    const poly = L.polyline(latlngs, { color: '#00B0F0', weight: 3 }).addTo(map);
+    map.fitBounds(poly.getBounds(), { padding: [20, 20] });
+    L.circleMarker(latlngs[0], { radius: 6, color: '#00B0F0', fillColor: '#00ff00', fillOpacity: 1 }).addTo(map);
+    L.circleMarker(latlngs[latlngs.length-1], { radius: 6, color: '#00B0F0', fillColor: '#ff4444', fillOpacity: 1 }).addTo(map);
+  };
+  document.head.appendChild(script);
+}
+{% endif %}
+</script>
+{% endblock %}
+{% endblock %}

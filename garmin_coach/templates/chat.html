@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}AI Coach — Garmin Coach{% endblock %}
+{% block content %}
+<div class="flex h-full">
+  <!-- Session list -->
+  <aside class="w-48 border-r border-gray-800 bg-gray-900 flex flex-col flex-shrink-0">
+    <div class="p-3 border-b border-gray-800">
+      <button onclick="newSession()" class="w-full px-3 py-1.5 bg-garmin hover:bg-garmin-dark rounded-lg text-white text-xs font-medium">
+        + Neues Gespräch
+      </button>
+    </div>
+    <div id="session-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+      {% for s in sessions %}
+      <button onclick="loadSession({{ s.id }}, this)"
+              class="w-full text-left px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:bg-gray-800 hover:text-white transition-colors truncate session-btn"
+              data-id="{{ s.id }}">
+        {{ s.title or 'Gespräch' }}
+      </button>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- Chat -->
+  <div class="flex-1 flex flex-col min-w-0">
+    {% if not has_api_key %}
+    <div class="m-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-300 text-sm">
+      <b>ANTHROPIC_API_KEY</b> fehlt in der <code>.env</code>-Datei. AI-Chat ist deaktiviert.
+    </div>
+    {% endif %}
+
+    <!-- Messages -->
+    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+      <div class="text-center text-gray-600 text-sm mt-8">
+        <div class="text-4xl mb-3">🏃</div>
+        <p class="font-medium text-gray-400">Garmin AI Coach</p>
+        <p class="text-xs mt-1">Ich analysiere deine Garmin-Daten wissenschaftlich. Frag mich über Trainingsfortschritte, Schlaf, Gesundheit oder konkrete Aktivitäten.</p>
+        <div class="mt-4 flex flex-wrap justify-center gap-2">
+          {% for prompt in [
+            'Analysiere meine letzten 4 Wochen Training',
+            'Wie war mein Schlaf diese Woche?',
+            'Zeig mir meinen VO2max-Trend',
+            'Wo kann ich meine Lauftechnik verbessern?'
+          ] %}
+          <button onclick="sendQuickPrompt(this.textContent)"
+                  class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-full text-xs text-gray-400 hover:text-white transition-colors">
+            {{ prompt }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="border-t border-gray-800 p-4">
+      <div class="flex gap-2 items-end">
+        <textarea
+          id="chat-input"
+          placeholder="Frag deinen AI Coach..."
+          rows="1"
+          class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-100 placeholder-gray-500 resize-none focus:outline-none focus:ring-1 focus:ring-garmin focus:border-garmin"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,160)+'px'"></textarea>
+        <button
+          id="send-btn"
+          onclick="sendMessage()"
+          class="px-4 py-3 bg-garmin hover:bg-garmin-dark rounded-xl text-white text-sm font-medium transition-colors flex-shrink-0">
+          Senden
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+// Simple markdown renderer (no dep)
+function renderMd(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```[\w]*\n?([\s\S]*?)```/g, '<pre class="bg-gray-950 rounded p-3 text-xs overflow-x-auto mt-2 mb-2 text-green-300">$1</pre>')
+    .replace(/`([^`]+)`/g, '<code class="bg-gray-800 px-1 rounded text-garmin text-xs">$1</code>')
+    .replace(/^### (.+)$/gm,'<h3 class="text-sm font-semibold text-white mt-3 mb-1">$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2 class="text-base font-bold text-white mt-4 mb-2">$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1 class="text-lg font-bold text-white mt-4 mb-2">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g,'<b class="text-white">$1</b>')
+    .replace(/\*(.+?)\*/g,'<i>$1</i>')
+    .replace(/^\| (.+)$/gm, (_, row) => {
+      if (row.replace(/[\s|\-:]/g,'').length === 0) return '';
+      const cells = row.split('|').map(c => `<td class="px-3 py-1 border-b border-gray-800">${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    })
+    .replace(/(<tr>[\s\S]*?<\/tr>)/g, '<table class="text-xs w-full mt-2 mb-2">$1</table>')
+    .replace(/^[-*] (.+)$/gm,'<li class="ml-4 list-disc text-gray-300">$1</li>')
+    .replace(/^\d+\. (.+)$/gm,'<li class="ml-4 list-decimal text-gray-300">$1</li>')
+    .replace(/(<li[^>]*>[\s\S]*?<\/li>\n?)+/g, '<ul class="space-y-0.5 my-1">$&</ul>')
+    .replace(/\n\n/g,'<br class="mb-2">').replace(/\n/g,'<br>');
+}
+
+let sessionId = null;
+let history = [];
+let isStreaming = false;
+
+function addMessage(role, content, streaming = false) {
+  const msgs = document.getElementById('messages');
+  // Remove placeholder
+  const placeholder = msgs.querySelector('.text-center');
+  if (placeholder) placeholder.remove();
+
+  const div = document.createElement('div');
+  div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} gap-3`;
+
+  if (role === 'assistant') {
+    div.innerHTML = `
+      <div class="w-7 h-7 rounded-full bg-garmin/20 text-garmin flex items-center justify-center text-xs flex-shrink-0 mt-0.5">AI</div>
+      <div class="max-w-2xl">
+        ${streaming ? '<div id="thinking-box" class="text-xs text-gray-500 italic mb-1 hidden">💭 <span id="thinking-text"></span></div>' : ''}
+        <div id="${streaming ? 'streaming-msg' : ''}" class="bg-gray-800 rounded-2xl rounded-tl-none px-4 py-3 text-sm text-gray-200 space-y-1 prose-sm">${streaming ? '' : renderMd(content)}</div>
+        <div id="tool-calls" class="mt-1 space-y-1"></div>
+      </div>`;
+  } else {
+    div.innerHTML = `
+      <div class="max-w-2xl bg-garmin/20 border border-garmin/30 rounded-2xl rounded-tr-none px-4 py-3 text-sm text-gray-200">
+        ${content.replace(/\n/g,'<br>')}
+      </div>
+      <div class="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">Du</div>`;
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function addToolBadge(name, summary) {
+  const tc = document.getElementById('tool-calls');
+  if (!tc) return;
+  const badge = document.createElement('div');
+  badge.className = 'flex items-center gap-1.5 text-xs text-gray-500';
+  badge.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"></circle></svg>
+    <span class="font-mono">${name}</span>: <span>${summary}</span>`;
+  tc.appendChild(badge);
+}
+
+async function sendMessage() {
+  if (isStreaming) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  isStreaming = true;
+  document.getElementById('send-btn').disabled = true;
+
+  addMessage('user', text);
+  const aiDiv = addMessage('assistant', '', true);
+
+  if (!sessionId) {
+    const resp = await fetch('/api/chat/session', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({title: text.substring(0,60)})
+    });
+    const data = await resp.json();
+    sessionId = data.id;
+    // Add to sidebar
+    const sl = document.getElementById('session-list');
+    const btn = document.createElement('button');
+    btn.className = 'w-full text-left px-2 py-1.5 rounded-lg text-xs text-garmin bg-garmin/10 truncate session-btn';
+    btn.textContent = text.substring(0,40);
+    btn.dataset.id = sessionId;
+    btn.onclick = () => loadSession(sessionId, btn);
+    sl.prepend(btn);
+  }
+
+  // Save user message
+  await fetch('/api/chat/message', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({session_id: sessionId, role: 'user', content: text})
+  });
+
+  let fullResponse = '';
+  const streamDiv = document.getElementById('streaming-msg');
+  const thinkingBox = document.getElementById('thinking-box');
+  const thinkingText = document.getElementById('thinking-text');
+
+  const es = new EventSource('/api/chat/stream?' + new URLSearchParams({
+    _: Date.now()
+  }));
+
+  // Use fetch with POST instead
+  es.close();
+
+  const response = await fetch('/api/chat/stream', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({message: text, history: history, session_id: sessionId})
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const {value, done} = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, {stream: true});
+    const lines = buffer.split('\n\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const event = JSON.parse(line.slice(6));
+      if (event.type === 'text_delta') {
+        fullResponse += event.text;
+        streamDiv.innerHTML = renderMd(fullResponse);
+        document.getElementById('messages').scrollTop = 99999;
+      } else if (event.type === 'thinking_delta' && thinkingBox) {
+        thinkingBox.classList.remove('hidden');
+        thinkingText.textContent = (thinkingText.textContent + event.text).slice(-100) + '…';
+      } else if (event.type === 'tool_use') {
+        addToolBadge(event.name, JSON.stringify(event.input).substring(0,60) + '…');
+      } else if (event.type === 'tool_result') {
+        // Update last badge with result
+        const badges = document.querySelectorAll('#tool-calls > div');
+        if (badges.length) badges[badges.length-1].innerHTML += ` → <b class="text-gray-400">${event.summary}</b>`;
+      } else if (event.type === 'done') {
+        if (thinkingBox) thinkingBox.classList.add('hidden');
+      } else if (event.type === 'error') {
+        streamDiv.innerHTML = `<span class="text-red-400">Fehler: ${event.text}</span>`;
+      }
+    }
+  }
+
+  // Save assistant message
+  history.push({role: 'user', content: text});
+  history.push({role: 'assistant', content: fullResponse});
+  // Keep history manageable
+  if (history.length > 20) history = history.slice(-20);
+
+  if (fullResponse) {
+    await fetch('/api/chat/message', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({session_id: sessionId, role: 'assistant', content: fullResponse})
+    });
+  }
+
+  isStreaming = false;
+  document.getElementById('send-btn').disabled = false;
+  input.focus();
+}
+
+function sendQuickPrompt(text) {
+  document.getElementById('chat-input').value = text;
+  sendMessage();
+}
+
+async function loadSession(id, btn) {
+  document.querySelectorAll('.session-btn').forEach(b => b.classList.remove('bg-garmin/10','text-garmin'));
+  btn.classList.add('bg-garmin/10', 'text-garmin');
+  sessionId = id;
+  history = [];
+
+  const resp = await fetch('/api/chat/session/' + id);
+  const data = await resp.json();
+
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = '';
+  for (const msg of data.messages) {
+    history.push(msg);
+    addMessage(msg.role, msg.content);
+  }
+}
+
+function newSession() {
+  document.querySelectorAll('.session-btn').forEach(b => b.classList.remove('bg-garmin/10','text-garmin'));
+  sessionId = null;
+  history = [];
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = `<div class="text-center text-gray-600 text-sm mt-8">
+    <div class="text-4xl mb-3">🏃</div>
+    <p class="font-medium text-gray-400">Neues Gespräch</p>
+  </div>`;
+  document.getElementById('chat-input').focus();
+}
+</script>
+{% endblock %}
+{% endblock %}

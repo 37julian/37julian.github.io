@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Schlaf — Garmin Coach{% endblock %}
+{% block content %}
+<div class="p-6 max-w-5xl mx-auto space-y-5">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-bold text-white">Schlaf</h1>
+    <div class="flex gap-2">
+      {% for d in [7, 30, 90] %}
+      <a href="/sleep?days={{ d }}" class="px-3 py-1 rounded-lg text-xs font-medium {% if days == d %}bg-garmin text-white{% else %}bg-gray-800 text-gray-400 hover:bg-gray-700{% endif %}">{{ d }}T</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Schlafdauer (h)</p>
+      <canvas id="durationChart" height="130"></canvas>
+    </div>
+    <div class="card">
+      <p class="text-xs text-gray-500 uppercase tracking-wide mb-3">Sleep Score & Overnight HRV</p>
+      <canvas id="scoreChart" height="130"></canvas>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card p-0 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead><tr class="text-xs text-gray-500 uppercase border-b border-gray-800">
+        <th class="text-left px-4 py-3">Datum</th>
+        <th class="text-right px-4 py-3">Gesamt</th>
+        <th class="text-right px-4 py-3">Tief</th>
+        <th class="text-right px-4 py-3">REM</th>
+        <th class="text-right px-4 py-3">Leicht</th>
+        <th class="text-right px-4 py-3">Wach</th>
+        <th class="text-right px-4 py-3">Score</th>
+        <th class="text-right px-4 py-3">HRV</th>
+        <th class="text-right px-4 py-3">Atmung</th>
+        <th class="text-right px-4 py-3">SpO₂</th>
+      </tr></thead>
+      <tbody class="divide-y divide-gray-800">
+        {% for s in sleep_days %}
+        {% macro h(sec) %}{% if sec %}{{ (sec/3600)|round(1) }}h{% else %}—{% endif %}{% endmacro %}
+        <tr class="hover:bg-gray-800/50">
+          <td class="px-4 py-2 text-gray-300">{{ s.date }}</td>
+          <td class="px-4 py-2 text-right text-white font-medium">{{ h(s.duration_seconds) }}</td>
+          <td class="px-4 py-2 text-right text-blue-400">{{ h(s.deep_seconds) }}</td>
+          <td class="px-4 py-2 text-right text-purple-400">{{ h(s.rem_seconds) }}</td>
+          <td class="px-4 py-2 text-right text-gray-400">{{ h(s.light_seconds) }}</td>
+          <td class="px-4 py-2 text-right text-gray-500">{{ h(s.awake_seconds) }}</td>
+          <td class="px-4 py-2 text-right">
+            {% if s.sleep_score %}
+            <span class="badge {% if s.sleep_score >= 80 %}bg-green-500/10 text-green-400{% elif s.sleep_score >= 60 %}bg-yellow-500/10 text-yellow-400{% else %}bg-red-500/10 text-red-400{% endif %}">
+              {{ s.sleep_score }}
+            </span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-2 text-right text-teal-400">{{ s.avg_overnight_hrv or '—' }}</td>
+          <td class="px-4 py-2 text-right text-gray-300">{{ s.avg_respiration or '—' }}</td>
+          <td class="px-4 py-2 text-right text-gray-300">{% if s.avg_spo2 %}{{ s.avg_spo2 }}%{% else %}—{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="px-4 py-8 text-center text-gray-500">Keine Schlafdaten — Sync ausführen.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+const cd = {{ chart_data | safe }};
+const opts = {
+  plugins: { legend: { display: false } },
+  elements: { point: { radius: 2 } },
+  scales: { x: { ticks: { maxTicksLimit: 10, maxRotation: 0 }, grid: { display: false } }, y: { grid: { color: '#1F2937' } } }
+};
+
+new Chart(document.getElementById('durationChart'), {
+  type: 'bar',
+  data: { labels: cd.dates, datasets: [
+    { label: 'Gesamt', data: cd.duration_h, backgroundColor: '#7C3AED40', borderColor: '#7C3AED', borderWidth: 1, borderRadius: 3 },
+    { label: 'Tief', data: cd.deep_h, backgroundColor: '#1D4ED8', borderColor: '#3B82F6', borderWidth: 1, borderRadius: 3 }
+  ]},
+  options: { ...opts, plugins: { legend: { display: true, labels: { usePointStyle: true, boxWidth: 6 } } } }
+});
+
+new Chart(document.getElementById('scoreChart'), {
+  type: 'line',
+  data: { labels: cd.dates, datasets: [
+    { label: 'Score', data: cd.score, borderColor: '#A78BFA', yAxisID: 'y', fill: false, tension: 0.4, pointRadius: 2 },
+    { label: 'HRV', data: cd.hrv, borderColor: '#2DD4BF', yAxisID: 'y2', fill: false, tension: 0.4, pointRadius: 2 }
+  ]},
+  options: {
+    plugins: { legend: { display: true, labels: { usePointStyle: true, boxWidth: 6 } } },
+    elements: { point: { radius: 2 } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 10, maxRotation: 0 }, grid: { display: false } },
+      y: { grid: { color: '#1F2937' }, position: 'left', min: 0, max: 100 },
+      y2: { grid: { display: false }, position: 'right' }
+    }
+  }
+});
+</script>
+{% endblock %}
+{% endblock %}
