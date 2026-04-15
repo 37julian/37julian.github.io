@@ -113,7 +113,6 @@ async def dashboard(request: Request) -> HTMLResponse:
         """, (d30,)).fetchone()
 
     ctx = {
-        "request": request,
         "stats": dict(stats) if stats else {},
         "recent": [dict(r) for r in recent],
         "weekly": [dict(w) for w in weekly],
@@ -123,7 +122,7 @@ async def dashboard(request: Request) -> HTMLResponse:
         "fmt_duration": _fmt_duration,
         "fmt_dist": _fmt_dist,
     }
-    return templates.TemplateResponse("dashboard.html", ctx)
+    return templates.TemplateResponse(request, "dashboard.html", ctx)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -166,8 +165,7 @@ async def activities(
         ).fetchall()
         types = conn.execute("SELECT DISTINCT type FROM activities ORDER BY type").fetchall()
 
-    return templates.TemplateResponse("activities.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "activities.html", {
         "activities": [dict(r) for r in rows],
         "types": [r["type"] for r in types],
         "total": total,
@@ -223,8 +221,7 @@ async def activity_detail(request: Request, garmin_id: int) -> HTMLResponse:
         "power": [r["power"] for r in records],
     }
 
-    return templates.TemplateResponse("activity.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "activity.html", {
         "activity": activity,
         "laps": [dict(l) for l in laps],
         "gps_track": json.dumps(gps_track),
@@ -254,8 +251,7 @@ async def sleep(request: Request, days: int = 30) -> HTMLResponse:
                FROM sleep_days WHERE date >= ? ORDER BY date DESC""",
             (start,),
         ).fetchall()
-    return templates.TemplateResponse("sleep.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "sleep.html", {
         "sleep_days": [dict(r) for r in rows],
         "days": days,
         "chart_data": json.dumps({
@@ -285,8 +281,7 @@ async def health(request: Request, days: int = 30) -> HTMLResponse:
                FROM health_days WHERE date >= ? ORDER BY date DESC""",
             (start,),
         ).fetchall()
-    return templates.TemplateResponse("health.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "health.html", {
         "health_days": [dict(r) for r in rows],
         "days": days,
         "chart_data": json.dumps({
@@ -318,8 +313,7 @@ async def chat_page(request: Request) -> HTMLResponse:
         sessions = conn.execute(
             "SELECT id, title, updated_at FROM chat_sessions ORDER BY updated_at DESC LIMIT 20"
         ).fetchall()
-    return templates.TemplateResponse("chat.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "chat.html", {
         "sessions": [dict(s) for s in sessions],
         "has_api_key": bool(config.ANTHROPIC_API_KEY),
     })
