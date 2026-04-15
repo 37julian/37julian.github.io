@@ -372,7 +372,7 @@ async def get_session(sid: int) -> JSONResponse:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-@app.post("/api/sync")
+@app.get("/api/sync")
 async def trigger_sync() -> StreamingResponse:
     """Startet einen Sync und streamt Log-Zeilen."""
     def _gen():
