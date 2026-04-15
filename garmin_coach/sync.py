@@ -19,7 +19,7 @@ import zipfile
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import garth
 from garminconnect import Garmin
@@ -86,13 +86,13 @@ def login(interactive: bool = False) -> Garmin:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _pace_min_per_km(speed_ms: float | None) -> float | None:
+def _pace_min_per_km(speed_ms: Optional[float]) -> Optional[float]:
     if not speed_ms or speed_ms <= 0:
         return None
     return round((1000 / speed_ms) / 60, 4)
 
 
-def _activity_to_row(a: dict[str, Any], fit_path: Path | None) -> dict[str, Any]:
+def _activity_to_row(a: dict[str, Any], fit_path: Optional[Path]) -> dict[str, Any]:
     atype = (a.get("activityType") or {}).get("typeKey")
     sub_type = (a.get("eventType") or {}).get("typeKey")
     avg_speed = a.get("averageSpeed")
@@ -147,7 +147,7 @@ def _activity_to_row(a: dict[str, Any], fit_path: Path | None) -> dict[str, Any]
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def download_fit(api: Garmin, activity_id: int) -> Path | None:
+def download_fit(api: Garmin, activity_id: int) -> Optional[Path]:
     """Lädt die rohe FIT-Datei einer Aktivität herunter."""
     fit_path = config.FIT_DIR / f"{activity_id}.fit"
     if fit_path.exists() and fit_path.stat().st_size > 0:
@@ -183,7 +183,7 @@ def download_fit(api: Garmin, activity_id: int) -> Path | None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def sync_activities(api: Garmin, limit: int | None = None) -> int:
+def sync_activities(api: Garmin, limit: Optional[int] = None) -> int:
     """Synchronisiert die letzten ``limit`` Aktivitäten.
 
     Wenn die Aktivität schon in der DB ist, werden FIT/Records/Laps NICHT
@@ -262,7 +262,7 @@ def _safe(api_call, *args, **kwargs):
         return None
 
 
-def sync_sleep(api: Garmin, days: int | None = None) -> int:
+def sync_sleep(api: Garmin, days: Optional[int] = None) -> int:
     """Synchronisiert Schlaf-Daten der letzten ``days`` Tage."""
     days = days or config.HEALTH_SYNC_DAYS
     log.info("Synchronisiere Schlaf-Daten der letzten %d Tage...", days)
@@ -315,7 +315,7 @@ def sync_sleep(api: Garmin, days: int | None = None) -> int:
     return added
 
 
-def sync_health(api: Garmin, days: int | None = None) -> int:
+def sync_health(api: Garmin, days: Optional[int] = None) -> int:
     """Synchronisiert tägliche Health-Metriken."""
     days = days or config.HEALTH_SYNC_DAYS
     log.info("Synchronisiere Health-Metriken der letzten %d Tage...", days)
@@ -422,7 +422,7 @@ def sync_training_status(api: Garmin) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def full_sync(activity_limit: int | None = None, health_days: int | None = None) -> dict:
+def full_sync(activity_limit: Optional[int] = None, health_days: Optional[int] = None) -> dict:
     """Macht einen kompletten Sync und gibt eine Zusammenfassung zurück."""
     init_db()
     api = login()

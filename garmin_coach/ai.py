@@ -170,9 +170,9 @@ def _row_to_dict(row) -> dict:
 
 
 def tool_list_activities(
-    start_date: str | None = None,
-    end_date: str | None = None,
-    activity_type: str | None = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    activity_type: Optional[str] = None,
     limit: int = 50,
 ) -> list[dict]:
     limit = max(1, min(int(limit or 50), 200))
@@ -202,7 +202,7 @@ def tool_list_activities(
     return [_row_to_dict(r) for r in rows]
 
 
-def tool_get_activity(garmin_id: int) -> dict | None:
+def tool_get_activity(garmin_id: int) -> Optional[dict]:
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM activities WHERE garmin_id = ?", (garmin_id,)).fetchone()
     if not row:
@@ -234,7 +234,7 @@ def tool_get_activity_laps(garmin_id: int) -> list[dict]:
 def tool_get_activity_records(
     garmin_id: int,
     downsample_to_n: int = 200,
-    fields: list[str] | None = None,
+    fields: Optional[list] = None,
 ) -> dict:
     n = max(10, min(int(downsample_to_n or 200), 2000))
     with get_conn() as conn:
@@ -292,7 +292,7 @@ def tool_get_health(start_date: str, end_date: str) -> list[dict]:
     return [_row_to_dict(r) for r in rows]
 
 
-def tool_get_training_status() -> dict | None:
+def tool_get_training_status() -> Optional[dict]:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT * FROM training_status ORDER BY date DESC LIMIT 1"
@@ -373,7 +373,7 @@ EINHEITEN: Distanz in km, Pace in min:sek/km, Power in Watt, HF in bpm, Geschwin
 
 def stream_chat(
     user_message: str,
-    history: list[dict] | None = None,
+    history: Optional[list] = None,
 ) -> Iterator[dict]:
     """Streamt einen Chat-Turn. Yields events:
     {"type": "thinking_delta"|"text_delta"|"tool_use"|"tool_result"|"done"|"error", ...}

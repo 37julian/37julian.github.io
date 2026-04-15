@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -309,7 +309,7 @@ async def health(request: Request, days: int = 30) -> HTMLResponse:
 class ChatRequest(BaseModel):
     message: str
     history: list[dict] = []
-    session_id: int | None = None
+    session_id: Optional[int] = None
 
 
 @app.get("/chat", response_class=HTMLResponse)
